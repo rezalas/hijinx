@@ -41,13 +41,29 @@ First, find out your current nginx version:
 nginx -v
 ```
 
-Download the matching version:
+#### Option A: Download Official Release (Recommended)
+
+Official nginx releases from nginx.org come ready to build:
+
 ```bash
 # Example for nginx 1.24.0
 cd /tmp
 wget http://nginx.org/download/nginx-1.24.0.tar.gz
 tar -xzf nginx-1.24.0.tar.gz
 ```
+
+#### Option B: Clone from GitHub
+
+If you're using nginx from GitHub, use the release branch or tag:
+
+```bash
+cd /tmp
+git clone https://github.com/nginx/nginx.git
+cd nginx
+git checkout release-1.24.0  # or appropriate version tag
+```
+
+**Note:** The Makefile automatically detects whether you're using official tarball source (has `./configure`) or GitHub source (has `auto/configure`) and uses the appropriate build method.
 
 ### Step 2: Configure Nginx with the Module
 
@@ -57,8 +73,15 @@ Dynamic modules can be loaded/unloaded without recompiling nginx:
 
 ```bash
 cd /tmp/nginx-1.24.0
+
+# For official tarball releases:
 ./configure --add-dynamic-module=/path/to/hijinx
+
+# For GitHub source:
+auto/configure --add-dynamic-module=/path/to/hijinx
 ```
+
+**Note:** The `make config` command automatically detects which method to use.
 
 If you want to preserve your existing nginx modules, use the same configure options as your current installation. To see your current configure options:
 
@@ -384,6 +407,67 @@ Build and run:
 docker build -t nginx-hijinx .
 docker run -d -p 80:80 -v /path/to/nginx.conf:/etc/nginx/nginx.conf nginx-hijinx
 ```
+
+## Troubleshooting
+
+### Error: "no /path/to/hijinx/config was found"
+
+This error means the nginx `config` file is missing from the module directory.
+
+**Cause:** The `config` file tells nginx how to build the module. It's required for all nginx modules.
+
+**Solution:** The `config` file should be in the root of the hijinx directory. If it's missing, create it with:
+
+```bash
+cat > config << 'EOF'
+ngx_addon_name=ngx_http_hijinx_module
+
+if test -n "$ngx_module_link"; then
+    ngx_module_type=HTTP
+    ngx_module_name=$ngx_addon_name
+    ngx_module_srcs="$ngx_addon_dir/ngx_http_hijinx_module.c"
+    
+    . auto/module
+else
+    HTTP_MODULES="$HTTP_MODULES $ngx_addon_name"
+    NGX_ADDON_SRCS="$NGX_ADDON_SRCS $ngx_addon_dir/ngx_http_hijinx_module.c"
+fi
+EOF
+```
+
+### Error: "./configure: not found" when running `make config`
+
+This error occurs when using nginx source from GitHub instead of an official tarball release.
+
+**Cause:** GitHub repository uses `auto/configure` while tarball releases have `./configure` pre-generated.
+
+**Solution:** The Makefile now automatically detects which type of source you have. Just make sure you're pointing to the correct nginx source directory:
+
+```bash
+# If you cloned from GitHub:
+make config NGINX_DIR=/path/to/nginx
+
+# If you downloaded tarball:
+make config NGINX_DIR=/path/to/nginx-1.24.0
+```
+
+The Makefile will automatically use the appropriate configure script.
+
+### Build fails with "No such file or directory"
+
+Make sure you've specified the full path to the nginx source:
+```bash
+make config NGINX_DIR=/full/path/to/nginx-source
+```
+
+Don't use relative paths like `../nginx-1.24.0` - use absolute paths.
+
+### Module fails to load
+
+Check that:
+1. The module was compiled for the same nginx version you're running: `nginx -v`
+2. The module file has correct permissions: `ls -la /etc/nginx/modules/ngx_http_hijinx_module.so`
+3. The load_module directive points to the correct path in your nginx.conf
 
 ## Support
 

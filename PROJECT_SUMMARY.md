@@ -81,6 +81,13 @@ cat /etc/nginx/hijinx/blacklist.txt
 tail -f /var/log/nginx/hijinx/hijinx_*.log
 ```
 
+## Source Files
+
+- `ngx_http_hijinx_module.c` - Main module source code
+- `config` - Nginx build configuration (tells nginx how to compile the module)
+- `Makefile` - Build automation
+- `patterns.txt` - Suspicious URI patterns
+
 ## Requirements
 
 - Nginx source code (matching installed version)

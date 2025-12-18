@@ -92,7 +92,18 @@ config:
 		echo "  make config NGINX_DIR=/path/to/nginx-source"; \
 		exit 1; \
 	fi
-	@cd $(NGINX_DIR) && ./configure --add-dynamic-module=$(MODULE_DIR)
+	@if [ -f "$(NGINX_DIR)/configure" ]; then \
+		echo "$(COLOR_BLUE)Using nginx tarball source (./configure)$(COLOR_RESET)"; \
+		cd $(NGINX_DIR) && ./configure --add-dynamic-module=$(MODULE_DIR); \
+	elif [ -f "$(NGINX_DIR)/auto/configure" ]; then \
+		echo "$(COLOR_BLUE)Using nginx GitHub source (auto/configure)$(COLOR_RESET)"; \
+		cd $(NGINX_DIR) && auto/configure --add-dynamic-module=$(MODULE_DIR); \
+	else \
+		echo "$(COLOR_YELLOW)ERROR: Cannot find configure script!$(COLOR_RESET)"; \
+		echo "Neither ./configure nor auto/configure found in $(NGINX_DIR)"; \
+		echo "Please ensure you have valid nginx source code."; \
+		exit 1; \
+	fi
 	@echo "$(COLOR_GREEN)Configuration complete!$(COLOR_RESET)"
 
 build:
