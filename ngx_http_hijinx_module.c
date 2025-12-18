@@ -264,7 +264,7 @@ ngx_http_hijinx_init_module(ngx_cycle_t *cycle)
     ngx_str_t name = ngx_string("hijinx_zone");
     size_t size = 10 * 1024 * 1024; /* 10MB shared memory */
 
-    hijinx_shm_zone = ngx_shared_memory_add(cycle->conf_ctx, &name, size, 
+    hijinx_shm_zone = ngx_shared_memory_add((ngx_conf_t *) cycle->conf_ctx[ngx_http_module.index], &name, size, 
                                             &ngx_http_hijinx_module);
     if (hijinx_shm_zone == NULL) {
         return NGX_ERROR;
@@ -631,7 +631,6 @@ ngx_http_hijinx_handler(ngx_http_request_t *r)
 {
     ngx_http_hijinx_loc_conf_t *hlcf;
     ngx_str_t ip;
-    ngx_int_t count;
     ngx_int_t is_suspicious = 0;
 
     hlcf = ngx_http_get_module_loc_conf(r, ngx_http_hijinx_module);
@@ -715,7 +714,6 @@ ngx_http_hijinx_load_patterns(ngx_conf_t *cf, ngx_http_hijinx_loc_conf_t *conf)
     ssize_t n;
     u_char *p, *last, *line_start, *line_end;
     ngx_http_hijinx_pattern_t *pattern;
-    ngx_uint_t line_num = 0;
     size_t line_len;
 
     ngx_memzero(&file, sizeof(ngx_file_t));
@@ -773,7 +771,6 @@ ngx_http_hijinx_load_patterns(ngx_conf_t *cf, ngx_http_hijinx_loc_conf_t *conf)
                 line_end++;
             }
 
-            line_num++;
             line_len = line_end - line_start;
 
             /* Trim trailing whitespace */
@@ -799,7 +796,7 @@ ngx_http_hijinx_load_patterns(ngx_conf_t *cf, ngx_http_hijinx_loc_conf_t *conf)
             /* Check max patterns */
             if (conf->patterns->nelts >= HIJINX_MAX_PATTERNS) {
                 ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-                                  \"hijinx: maximum patterns (%d) reached, ignoring remaining\",
+                                  "hijinx: maximum patterns (%d) reached, ignoring remaining",
                                   HIJINX_MAX_PATTERNS);
                 break;
             }
@@ -827,7 +824,7 @@ ngx_http_hijinx_load_patterns(ngx_conf_t *cf, ngx_http_hijinx_loc_conf_t *conf)
     ngx_close_file(file.fd);
 
     ngx_conf_log_error(NGX_LOG_INFO, cf, 0,
-                      \"hijinx: loaded %ui patterns from %V\",
+                      "hijinx: loaded %ui patterns from %V",
                       conf->patterns->nelts, &conf->patterns_file);
 
     return NGX_OK;
