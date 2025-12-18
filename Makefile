@@ -71,6 +71,11 @@ setup:
 	else \
 		echo "$(COLOR_YELLOW)config_template.conf already exists, not overwriting$(COLOR_RESET)"; \
 	fi
+	@echo "$(COLOR_BLUE)Installing HTML files for random content serving...$(COLOR_RESET)"
+	@sudo mkdir -p /etc/nginx/hijinx/html
+	@sudo cp -n html/*.html /etc/nginx/hijinx/html/ 2>/dev/null || true
+	@sudo chmod 644 /etc/nginx/hijinx/html/*.html 2>/dev/null || true
+	@echo "$(COLOR_GREEN)Installed HTML files$(COLOR_RESET)"
 	@sudo chown -R nginx:nginx /etc/nginx/hijinx 2>/dev/null || \
 		sudo chown -R www-data:www-data /etc/nginx/hijinx 2>/dev/null || \
 		sudo chown -R $$USER:$$USER /etc/nginx/hijinx

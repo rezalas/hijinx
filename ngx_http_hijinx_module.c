@@ -13,18 +13,26 @@
 #define HIJINX_DEFAULT_THRESHOLD 5
 #define HIJINX_HASH_SIZE 10007
 #define HIJINX_MAX_PATTERNS 100
+#define HIJINX_MAX_HTML_FILES 50
 
 typedef struct {
     ngx_str_t   pattern;
 } ngx_http_hijinx_pattern_t;
 
 typedef struct {
+    ngx_str_t   content;
+} ngx_http_hijinx_html_t;
+
+typedef struct {
     ngx_str_t   blacklist_file;
     ngx_str_t   log_dir;
     ngx_str_t   patterns_file;
+    ngx_str_t   html_dir;
     ngx_int_t   suspicion_threshold;
     ngx_flag_t  enabled;
+    ngx_flag_t  serve_random_content;
     ngx_array_t *patterns;  /* array of ngx_http_hijinx_pattern_t */
+    ngx_array_t *html_files; /* array of ngx_http_hijinx_html_t */
 } ngx_http_hijinx_loc_conf_t;
 
 typedef struct {
@@ -59,6 +67,10 @@ static ngx_int_t ngx_http_hijinx_increment_ip(ngx_http_request_t *r, ngx_str_t *
 static ngx_uint_t ngx_http_hijinx_hash_ip(ngx_str_t *ip);
 static ngx_int_t ngx_http_hijinx_load_patterns(ngx_conf_t *cf, ngx_http_hijinx_loc_conf_t *conf);
 static ngx_int_t ngx_http_hijinx_check_patterns(ngx_http_request_t *r, ngx_http_hijinx_loc_conf_t *hlcf);
+static ngx_int_t ngx_http_hijinx_load_html_files(ngx_conf_t *cf, ngx_http_hijinx_loc_conf_t *conf);
+static ngx_int_t ngx_http_hijinx_serve_random_html(ngx_http_request_t *r, ngx_http_hijinx_loc_conf_t *hlcf);
+static ngx_int_t ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *request_uri, ngx_uint_t file_index);
+static void ngx_http_hijinx_log_error(ngx_http_request_t *r, const char *message);
 
 static ngx_command_t ngx_http_hijinx_commands[] = {
     {
@@ -101,6 +113,22 @@ static ngx_command_t ngx_http_hijinx_commands[] = {
         offsetof(ngx_http_hijinx_loc_conf_t, patterns_file),
         NULL
     },
+    {
+        ngx_string("hijinx_serve_random_content"),
+        NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_FLAG,
+        ngx_conf_set_flag_slot,
+        NGX_HTTP_LOC_CONF_OFFSET,
+        offsetof(ngx_http_hijinx_loc_conf_t, serve_random_content),
+        NULL
+    },
+    {
+        ngx_string("hijinx_html_dir"),
+        NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
+        ngx_conf_set_str_slot,
+        NGX_HTTP_LOC_CONF_OFFSET,
+        offsetof(ngx_http_hijinx_loc_conf_t, html_dir),
+        NULL
+    },
     ngx_null_command
 };
 
@@ -141,8 +169,10 @@ ngx_http_hijinx_create_loc_conf(ngx_conf_t *cf)
     }
 
     conf->enabled = NGX_CONF_UNSET;
+    conf->serve_random_content = NGX_CONF_UNSET;
     conf->suspicion_threshold = NGX_CONF_UNSET;
     conf->patterns = NULL;
+    conf->html_files = NULL;
 
     return conf;
 }
@@ -154,9 +184,11 @@ ngx_http_hijinx_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_hijinx_loc_conf_t *conf = child;
 
     ngx_conf_merge_value(conf->enabled, prev->enabled, 0);
+    ngx_conf_merge_value(conf->serve_random_content, prev->serve_random_content, 0);
     ngx_conf_merge_str_value(conf->blacklist_file, prev->blacklist_file, "/etc/nginx/hijinx/blacklist.txt");
     ngx_conf_merge_str_value(conf->log_dir, prev->log_dir, "/var/log/nginx/hijinx");
     ngx_conf_merge_str_value(conf->patterns_file, prev->patterns_file, "/etc/nginx/hijinx/patterns.txt");
+    ngx_conf_merge_str_value(conf->html_dir, prev->html_dir, "/etc/nginx/hijinx/html");
     ngx_conf_merge_value(conf->suspicion_threshold, prev->suspicion_threshold, HIJINX_DEFAULT_THRESHOLD);
 
     /* Load patterns if not already loaded */
@@ -170,6 +202,20 @@ ngx_http_hijinx_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
             ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
                               "hijinx: failed to load patterns from %V, using defaults",
                               &conf->patterns_file);
+        }
+    }
+
+    /* Load HTML files if serve_random_content is enabled */
+    if (conf->serve_random_content && conf->html_files == NULL) {
+        conf->html_files = ngx_array_create(cf->pool, 10, sizeof(ngx_http_hijinx_html_t));
+        if (conf->html_files == NULL) {
+            return NGX_CONF_ERROR;
+        }
+        
+        if (ngx_http_hijinx_load_html_files(cf, conf) != NGX_OK) {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                              "hijinx: failed to load HTML files from %V",
+                              &conf->html_dir);
         }
     }
 
@@ -486,6 +532,100 @@ ngx_http_hijinx_log_event(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *reque
     return NGX_OK;
 }
 
+/* Log random content serving events */
+static ngx_int_t
+ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *request_uri, ngx_uint_t file_index)
+{
+    ngx_file_t file;
+    ngx_http_hijinx_loc_conf_t *hlcf;
+    u_char buf[2048];
+    u_char logpath[512];
+    u_char timebuf[64];
+    size_t len;
+    struct tm *tm;
+    time_t now;
+
+    hlcf = ngx_http_get_module_loc_conf(r, ngx_http_hijinx_module);
+
+    now = ngx_time();
+    tm = localtime(&now);
+    
+    ngx_memzero(&file, sizeof(ngx_file_t));
+    
+    len = ngx_snprintf(logpath, sizeof(logpath), "%V/hijinx.log",
+                      &hlcf->log_dir) - logpath;
+    
+    file.name.data = logpath;
+    file.name.len = len;
+    file.log = r->connection->log;
+
+    file.fd = ngx_open_file(file.name.data, NGX_FILE_WRONLY, NGX_FILE_CREATE_OR_OPEN,
+                            NGX_FILE_DEFAULT_ACCESS);
+    if (file.fd == NGX_INVALID_FILE) {
+        ngx_http_hijinx_log_error(r, "Failed to open hijinx.log for random content logging");
+        return NGX_ERROR;
+    }
+
+    ngx_snprintf(timebuf, sizeof(timebuf), "%04d-%02d-%02d %02d:%02d:%02d",
+                tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
+                tm->tm_hour, tm->tm_min, tm->tm_sec);
+
+    len = ngx_snprintf(buf, sizeof(buf), "%s - %V - Served random content (file #%ui) - %V\n",
+                      timebuf, ip, file_index, request_uri) - buf;
+
+    ngx_write_file(&file, buf, len, file.offset);
+    ngx_close_file(file.fd);
+
+    return NGX_OK;
+}
+
+/* Log errors to hijinx-error.log */
+static void
+ngx_http_hijinx_log_error(ngx_http_request_t *r, const char *message)
+{
+    ngx_file_t file;
+    ngx_http_hijinx_loc_conf_t *hlcf;
+    u_char buf[2048];
+    u_char logpath[512];
+    u_char timebuf[64];
+    size_t len;
+    struct tm *tm;
+    time_t now;
+
+    hlcf = ngx_http_get_module_loc_conf(r, ngx_http_hijinx_module);
+
+    now = ngx_time();
+    tm = localtime(&now);
+    
+    ngx_memzero(&file, sizeof(ngx_file_t));
+    
+    len = ngx_snprintf(logpath, sizeof(logpath), "%V/hijinx-error.log",
+                      &hlcf->log_dir) - logpath;
+    
+    file.name.data = logpath;
+    file.name.len = len;
+    file.log = r->connection->log;
+
+    file.fd = ngx_open_file(file.name.data, NGX_FILE_WRONLY, NGX_FILE_CREATE_OR_OPEN,
+                            NGX_FILE_DEFAULT_ACCESS);
+    if (file.fd == NGX_INVALID_FILE) {
+        /* Can't write to error log, just log to nginx error log */
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "hijinx: Failed to open hijinx-error.log: %s", message);
+        return;
+    }
+
+    ngx_snprintf(timebuf, sizeof(timebuf), "%04d-%02d-%02d %02d:%02d:%02d",
+                tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
+                tm->tm_hour, tm->tm_min, tm->tm_sec);
+
+    len = ngx_snprintf(buf, sizeof(buf), "%s - ERROR - %s\n",
+                      timebuf, message) - buf;
+
+    ngx_write_file(&file, buf, len, file.offset);
+    ngx_close_file(file.fd);
+}
+
 static ngx_int_t
 ngx_http_hijinx_handler(ngx_http_request_t *r)
 {
@@ -515,7 +655,12 @@ ngx_http_hijinx_handler(ngx_http_request_t *r)
 
     /* Only track if suspicious pattern detected */
     if (is_suspicious) {
-        /* We'll check the response status in the log phase handler */
+        /* If serve_random_content is enabled, serve fake HTML immediately */
+        if (hlcf->serve_random_content) {
+            return ngx_http_hijinx_serve_random_html(r, hlcf);
+        }
+        
+        /* Otherwise, we'll check the response status in the log phase handler */
         /* Store flag in request context */
         ngx_http_set_ctx(r, (void *) 1, ngx_http_hijinx_module);
     }
@@ -709,4 +854,201 @@ ngx_http_hijinx_check_patterns(ngx_http_request_t *r, ngx_http_hijinx_loc_conf_t
     }
 
     return 0;
+}
+
+/* Load HTML files from directory for random content serving */
+static ngx_int_t
+ngx_http_hijinx_load_html_files(ngx_conf_t *cf, ngx_http_hijinx_loc_conf_t *conf)
+{
+    ngx_dir_t dir;
+    ngx_file_info_t fi;
+    ngx_str_t path;
+    u_char *filename;
+    size_t len;
+    ngx_file_t file;
+    u_char buf[8192];
+    ssize_t n, total;
+    ngx_http_hijinx_html_t *html;
+
+    if (ngx_open_dir(&conf->html_dir, &dir) == NGX_ERROR) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
+                          "hijinx: failed to open HTML directory %V", &conf->html_dir);
+        return NGX_ERROR;
+    }
+
+    for (;;) {
+        ngx_set_errno(0);
+        
+        if (ngx_read_dir(&dir) == NGX_ERROR) {
+            ngx_close_dir(&dir);
+            break;
+        }
+
+        filename = ngx_de_name(&dir);
+        len = ngx_de_namelen(&dir);
+
+        if (len == 1 && filename[0] == '.') {
+            continue;
+        }
+        if (len == 2 && filename[0] == '.' && filename[1] == '.') {
+            continue;
+        }
+
+        /* Only load .html files */
+        if (len < 5 || ngx_strncmp(filename + len - 5, ".html", 5) != 0) {
+            continue;
+        }
+
+        /* Check max HTML files */
+        if (conf->html_files->nelts >= HIJINX_MAX_HTML_FILES) {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                              "hijinx: maximum HTML files (%d) reached, ignoring remaining",
+                              HIJINX_MAX_HTML_FILES);
+            break;
+        }
+
+        /* Build full path */
+        path.len = conf->html_dir.len + 1 + len;
+        path.data = ngx_pnalloc(cf->pool, path.len + 1);
+        if (path.data == NULL) {
+            ngx_close_dir(&dir);
+            return NGX_ERROR;
+        }
+
+        ngx_sprintf(path.data, "%V/%s%Z", &conf->html_dir, filename);
+
+        /* Read file content */
+        ngx_memzero(&file, sizeof(ngx_file_t));
+        file.name = path;
+        file.log = cf->log;
+
+        file.fd = ngx_open_file(path.data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
+        if (file.fd == NGX_INVALID_FILE) {
+            ngx_conf_log_error(NGX_LOG_WARN, cf, ngx_errno,
+                              "hijinx: failed to open HTML file %V", &path);
+            continue;
+        }
+
+        if (ngx_fd_info(file.fd, &fi) == NGX_FILE_ERROR) {
+            ngx_close_file(file.fd);
+            continue;
+        }
+
+        if (ngx_is_dir(&fi)) {
+            ngx_close_file(file.fd);
+            continue;
+        }
+
+        /* Allocate memory for HTML content */
+        html = ngx_array_push(conf->html_files);
+        if (html == NULL) {
+            ngx_close_file(file.fd);
+            ngx_close_dir(&dir);
+            return NGX_ERROR;
+        }
+
+        html->content.len = ngx_file_size(&fi);
+        html->content.data = ngx_pnalloc(cf->pool, html->content.len);
+        if (html->content.data == NULL) {
+            ngx_close_file(file.fd);
+            ngx_close_dir(&dir);
+            return NGX_ERROR;
+        }
+
+        /* Read entire file into memory */
+        total = 0;
+        while (total < (ssize_t) html->content.len) {
+            n = ngx_read_file(&file, buf, sizeof(buf), total);
+            if (n == NGX_ERROR) {
+                ngx_close_file(file.fd);
+                ngx_close_dir(&dir);
+                return NGX_ERROR;
+            }
+            if (n == 0) {
+                break;
+            }
+            ngx_memcpy(html->content.data + total, buf, n);
+            total += n;
+        }
+
+        ngx_close_file(file.fd);
+    }
+
+    ngx_close_dir(&dir);
+
+    if (conf->html_files->nelts == 0) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                          "hijinx: no HTML files found in %V", &conf->html_dir);
+        return NGX_ERROR;
+    }
+
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0,
+                      "hijinx: loaded %ui HTML files from %V",
+                      conf->html_files->nelts, &conf->html_dir);
+
+    return NGX_OK;
+}
+
+/* Serve random HTML content from loaded files */
+static ngx_int_t
+ngx_http_hijinx_serve_random_html(ngx_http_request_t *r, ngx_http_hijinx_loc_conf_t *hlcf)
+{
+    ngx_http_hijinx_html_t *html_files;
+    ngx_http_hijinx_html_t *selected;
+    ngx_uint_t index;
+    ngx_buf_t *b;
+    ngx_chain_t out;
+    ngx_str_t ip;
+    ngx_int_t rc;
+
+    if (hlcf->html_files == NULL || hlcf->html_files->nelts == 0) {
+        /* No HTML files loaded, log error and return 404 */
+        ngx_http_hijinx_log_error(r, "No HTML files loaded for random content serving");
+        return NGX_HTTP_NOT_FOUND;
+    }
+
+    html_files = hlcf->html_files->elts;
+
+    /* Randomly select an HTML file */
+    /* Use simple pseudo-random selection based on current time and IP */
+    index = (ngx_time() + r->connection->number) % hlcf->html_files->nelts;
+    selected = &html_files[index];
+
+    /* Get client IP for logging */
+    ip = r->connection->addr_text;
+
+    /* Log the random content serving event */
+    ngx_http_hijinx_log_random_content(r, &ip, &r->uri, index);
+
+    /* Set response status */
+    r->headers_out.status = NGX_HTTP_OK;
+    r->headers_out.content_length_n = selected->content.len;
+
+    /* Set content type */
+    ngx_str_set(&r->headers_out.content_type, "text/html");
+    r->headers_out.content_type_len = sizeof("text/html") - 1;
+
+    /* Send headers */
+    rc = ngx_http_send_header(r);
+    if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
+        return rc;
+    }
+
+    /* Create buffer with HTML content */
+    b = ngx_create_temp_buf(r->pool, selected->content.len);
+    if (b == NULL) {
+        ngx_http_hijinx_log_error(r, "Failed to allocate buffer for random content");
+        return NGX_HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    ngx_memcpy(b->pos, selected->content.data, selected->content.len);
+    b->last = b->pos + selected->content.len;
+    b->last_buf = 1;
+    b->last_in_chain = 1;
+
+    /* Send body */
+    out.buf = b;
+    out.next = NULL;
+
+    return ngx_http_output_filter(r, &out);
 }

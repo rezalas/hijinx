@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Status</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+        .status-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #00ff00;
+            border-radius: 5px;
+        }
+        h2 {
+            color: #00ddff;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        .status-line {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #333;
+        }
+        .status-line:last-child {
+            border-bottom: none;
+        }
+        .label {
+            color: #888;
+        }
+        .value {
+            color: #00ff00;
+            font-weight: bold;
+        }
+        .ok {
+            color: #00ff00;
+        }
+        .warning {
+            color: #ffaa00;
+        }
+        .loading {
+            text-align: center;
+            font-size: 1.2em;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>◉ SERVER STATUS MONITOR</h1>
+        
+        <div class="status-section">
+            <h2>System Information</h2>
+            <div class="status-line">
+                <span class="label">Hostname:</span>
+                <span class="value">web-server-01</span>
+            </div>
+            <div class="status-line">
+                <span class="label">Operating System:</span>
+                <span class="value">Linux 5.15.0-generic</span>
+            </div>
+            <div class="status-line">
+                <span class="label">Uptime:</span>
+                <span class="value">42 days, 13:25:07</span>
+            </div>
+            <div class="status-line">
+                <span class="label">Load Average:</span>
+                <span class="value">0.45, 0.52, 0.48</span>
+            </div>
+        </div>
+
+        <div class="status-section">
+            <h2>Services Status</h2>
+            <div class="status-line">
+                <span class="label">Web Server (nginx):</span>
+                <span class="value ok">● RUNNING</span>
+            </div>
+            <div class="status-line">
+                <span class="label">Database (MySQL):</span>
+                <span class="value ok">● RUNNING</span>
+            </div>
+            <div class="status-line">
+                <span class="label">Cache (Redis):</span>
+                <span class="value ok">● RUNNING</span>
+            </div>
+            <div class="status-line">
+                <span class="label">Queue Worker:</span>
+                <span class="value ok">● RUNNING</span>
+            </div>
+        </div>
+
+        <div class="status-section">
+            <h2>Resource Usage</h2>
+            <div class="status-line">
+                <span class="label">CPU Usage:</span>
+                <span class="value">23.4%</span>
+            </div>
+            <div class="status-line">
+                <span class="label">Memory Usage:</span>
+                <span class="value">4.2 GB / 16 GB (26%)</span>
+            </div>
+            <div class="status-line">
+                <span class="label">Disk Usage:</span>
+                <span class="value">127 GB / 500 GB (25%)</span>
+            </div>
+            <div class="status-line">
+                <span class="label">Network I/O:</span>
+                <span class="value">↓ 45.2 MB/s ↑ 12.8 MB/s</span>
+            </div>
+        </div>
+
+        <div class="status-section">
+            <h2>Security</h2>
+            <div class="status-line">
+                <span class="label">Firewall:</span>
+                <span class="value ok">● ACTIVE</span>
+            </div>
+            <div class="status-line">
+                <span class="label">SSL Certificate:</span>
+                <span class="value ok">VALID (expires in 87 days)</span>
+            </div>
+            <div class="status-line">
+                <span class="label">Failed Login Attempts:</span>
+                <span class="value">142 (last 24h)</span>
+            </div>
+        </div>
+
+        <p class="loading">◉ Refreshing...</p>
+    </div>
+</body>
+</html>

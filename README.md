@@ -116,7 +116,23 @@ Number of suspicious requests before an IP is blacklisted.
 
 Path to the patterns file containing suspicious URI patterns to monitor. See [PATTERNS.md](PATTERNS.md) for detailed documentation.
 
+#### `hijinx_serve_random_content`
+- **Syntax**: `hijinx_serve_random_content on|off;`
+- **Default**: `off`
+- **Context**: `http`, `server`, `location`
+
+When enabled, serves random HTML content from the HTML directory instead of allowing suspicious requests through. This makes it harder for attackers to profile your site.
+
+#### `hijinx_html_dir`
+- **Syntax**: `hijinx_html_dir path;`
+- **Default**: `/etc/nginx/hijinx/html`
+- **Context**: `http`, `server`, `location`
+
+Directory containing HTML files to randomly serve when `hijinx_serve_random_content` is enabled. The module will load all `.html` files from this directory at startup.
+
 ## How It Works
+
+### Standard Mode (Default)
 
 1. **Access Phase**: The module intercepts requests in the access phase and checks if the IP is already blacklisted. If blacklisted, returns 403 Forbidden immediately.
 
@@ -130,6 +146,18 @@ Path to the patterns file containing suspicious URI patterns to monitor. See [PA
 4. **Automatic Blacklisting**: When an IP reaches the threshold, it's automatically added to the blacklist file and logged.
 
 5. **Shared Memory**: Uses nginx shared memory (10MB by default) to track IP counts across all worker processes.
+
+### Random Content Mode
+
+When `hijinx_serve_random_content` is enabled:
+
+1. **Immediate Response**: When a suspicious pattern is detected, instead of allowing the request through, hijinx immediately serves random HTML content from the configured directory.
+
+2. **Deception**: Attackers see what appears to be legitimate admin panels, login pages, or server status pages, making it harder to profile your actual site structure.
+
+3. **No Real Access**: Suspicious requests never reach your actual application, providing an additional layer of protection.
+
+4. **Random Selection**: HTML content is randomly selected based on request time and connection number, so attackers see different responses.
 
 ## Setup Instructions
 
@@ -174,10 +202,31 @@ sudo nginx -s reload
 
 ## Monitoring
 
-Check the hijinx log:
+### Hijinx Activity Log
+
+Check the main hijinx log (blacklisting and random content serving):
 ```bash
 tail -f /var/log/nginx/hijinx/hijinx.log
 ```
+
+This log includes:
+- Blacklisting events: `YYYY-MM-DD HH:MM:SS - IP - Added to blacklist thanks to final straw - URI`
+- Random content serving: `YYYY-MM-DD HH:MM:SS - IP - Served random content (file #N) - URI`
+
+### Hijinx Error Log
+
+Check the error log for module issues:
+```bash
+tail -f /var/log/nginx/hijinx/hijinx-error.log
+```
+
+This log captures:
+- Failed to load HTML files
+- Memory allocation errors
+- File I/O errors
+- Configuration problems
+
+### Other Monitoring
 
 View blacklisted IPs:
 ```bash

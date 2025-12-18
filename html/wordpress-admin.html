@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordPress Admin</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+            background: #f1f1f1;
+            margin: 0;
+            padding: 0;
+        }
+        .wp-core-ui {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        #login {
+            width: 320px;
+            padding: 8% 0 0;
+            margin: auto;
+        }
+        #loginform {
+            background: #fff;
+            padding: 26px 24px;
+            font-weight: 400;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,.13);
+        }
+        h1 {
+            text-align: center;
+            margin: 0 0 25px;
+        }
+        h1 a {
+            background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBmaWxsPSIjMjE3NTlhIiBkPSJNNTEyIDI1NmMwIDE0MS4zODUtMTE0LjYxNSAyNTYtMjU2IDI1NlMwIDM5Ny4zODUgMCAyNTZTMTE0LjYxNSAwIDI1NiAwczI1NiAxMTQuNjE1IDI1NiAyNTZ6TTI1NiA0OGMtMTE0Ljg3NSAwLTIwOCA5My4xMjUtMjA4IDIwOHM5My4xMjUgMjA4IDIwOCAyMDggMjA4LTkzLjEyNSAyMDgtMjA4Uzg3IDQ4IDI1NiA0OHoiLz48L3N2Zz4=);
+            width: 84px;
+            height: 84px;
+            display: inline-block;
+            text-indent: -9999px;
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+        label {
+            font-size: 14px;
+            line-height: 1.5;
+            display: block;
+            margin-bottom: 3px;
+        }
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 3px 5px;
+            font-size: 24px;
+            line-height: 1.33333333;
+            margin: 0 6px 16px 0;
+            background-color: #fff;
+            border: 1px solid #dcdcde;
+            box-sizing: border-box;
+        }
+        .submit {
+            text-align: center;
+            padding: 0;
+        }
+        .button {
+            display: inline-block;
+            text-decoration: none;
+            font-size: 13px;
+            line-height: 2.15384615;
+            min-height: 30px;
+            margin: 0;
+            padding: 0 10px;
+            cursor: pointer;
+            border-width: 1px;
+            border-style: solid;
+            border-radius: 3px;
+            white-space: nowrap;
+            box-sizing: border-box;
+            background: #2271b1;
+            border-color: #2271b1;
+            color: #fff;
+            width: 100%;
+            height: 40px;
+            font-size: 16px;
+        }
+        .forgetmenot {
+            font-weight: 400;
+            float: left;
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body class="wp-core-ui">
+    <div id="login">
+        <h1><a href="#">Powered by WordPress</a></h1>
+        <form name="loginform" id="loginform" action="/wp-login.php" method="post">
+            <p>
+                <label for="user_login">Username or Email Address</label>
+                <input type="text" name="log" id="user_login" class="input" value="" size="20" autocapitalize="off" />
+            </p>
+            <p>
+                <label for="user_pass">Password</label>
+                <input type="password" name="pwd" id="user_pass" class="input" value="" size="20" />
+            </p>
+            <p class="forgetmenot">
+                <input name="rememberme" type="checkbox" id="rememberme" value="forever" />
+                <label for="rememberme">Remember Me</label>
+            </p>
+            <p class="submit">
+                <input type="submit" name="wp-submit" id="wp-submit" class="button button-primary button-large" value="Log In" />
+            </p>
+        </form>
+    </div>
+</body>
+</html>

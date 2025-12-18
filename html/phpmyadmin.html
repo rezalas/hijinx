@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>phpMyAdmin</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #2c2c2c;
+            color: #444;
+            margin: 0;
+            padding: 0;
+        }
+        #pma_header {
+            background: #333;
+            color: #fff;
+            padding: 0.3em 0.5em;
+            border-bottom: 2px solid #e97d0e;
+        }
+        #pma_header h1 {
+            margin: 0;
+            font-size: 1.2em;
+            display: inline-block;
+        }
+        .logo {
+            color: #e97d0e;
+        }
+        #page_content {
+            background: #fff;
+            min-height: calc(100vh - 50px);
+            padding: 20px;
+        }
+        .login_form {
+            max-width: 500px;
+            margin: 50px auto;
+            padding: 30px;
+            background: #fff;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        fieldset {
+            border: 0;
+            padding: 0;
+            margin: 20px 0;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        input[type="text"],
+        input[type="password"],
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        input[type="submit"] {
+            background: #3a7bbe;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover {
+            background: #2e6ca6;
+        }
+        .notice {
+            background: #ffffcc;
+            border: 1px solid #e0e000;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div id="pma_header">
+        <h1><span class="logo">phpMyAdmin</span></h1>
+    </div>
+    <div id="page_content">
+        <div class="login_form">
+            <h2>Welcome to phpMyAdmin</h2>
+            <div class="notice">
+                Database server information: MySQL 8.0.28
+            </div>
+            <form method="post" action="index.php">
+                <fieldset>
+                    <label for="input_username">Username:</label>
+                    <input type="text" name="pma_username" id="input_username" value="" autofocus>
+                    
+                    <label for="input_password">Password:</label>
+                    <input type="password" name="pma_password" id="input_password" value="">
+                    
+                    <label for="input_servername">Server:</label>
+                    <input type="text" name="pma_servername" id="input_servername" value="localhost">
+                    
+                    <input type="submit" value="Go" name="submit">
+                </fieldset>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

@@ -28,9 +28,10 @@ sudo nginx -s reload
 
 - **Real-time Detection**: Processes requests as they happen
 - **Automatic Blocking**: IPs over threshold are immediately blacklisted  
+- **Random Content Serving**: Serve fake HTML to suspicious requests for deception
 - **High Performance**: Native C code, in-memory tracking
 - **Scalable**: Uses shared memory across worker processes
-- **Configurable**: Customizable threshold and patterns
+- **Configurable**: Customizable threshold, patterns, and HTML content
 - **Production Ready**: Thread-safe, tested, documented
 
 ## How It Works
@@ -61,6 +62,8 @@ sudo nginx -s reload
 | `hijinx_blacklist` | /etc/nginx/hijinx/blacklist.txt | Blacklist file path |
 | `hijinx_log_dir` | /var/log/nginx/hijinx | Log directory |
 | `hijinx_patterns` | /etc/nginx/hijinx/patterns.txt | Patterns file path |
+| `hijinx_serve_random_content` | off | Serve fake HTML to suspicious requests |
+| `hijinx_html_dir` | /etc/nginx/hijinx/html | Directory with HTML files |
 | `hijinx_threshold` | 5 | Requests before blocking |
 
 ## Testing

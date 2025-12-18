@@ -2,9 +2,18 @@
 
 ## Overview
 
-The Hijinx module writes all events to a single log file: `/var/log/nginx/hijinx/hijinx.log`
+The Hijinx module maintains two log files:
 
-This file should be rotated regularly using standard log rotation tools to prevent it from growing too large.
+1. **`hijinx.log`** - Main activity log
+   - Blacklisting events
+   - Random content serving (when enabled)
+   
+2. **`hijinx-error.log`** - Error log
+   - Module errors
+   - Configuration issues
+   - File I/O problems
+
+Both files are located in `/var/log/nginx/hijinx/` and should be rotated regularly using standard log rotation tools to prevent them from growing too large.
 
 ## Using Logrotate (Recommended)
 
