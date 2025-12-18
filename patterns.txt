@@ -1,0 +1,142 @@
+# Hijinx Suspicious Patterns File
+#
+# This file contains patterns that Hijinx will monitor for suspicious activity.
+# When a request matches one of these patterns AND results in a 403 or 404 status,
+# the requesting IP's suspicion counter is incremented.
+#
+# FORMAT RULES:
+# =============
+# 1. One pattern per line
+# 2. Patterns are case-sensitive substring matches
+# 3. Lines starting with # are comments (ignored)
+# 4. Empty lines are ignored
+# 5. Leading and trailing whitespace is trimmed
+# 6. Maximum 100 patterns supported
+#
+# PATTERN MATCHING:
+# =================
+# Patterns are matched against the request URI using substring search.
+# For example:
+#   - Pattern "/admin" matches: /admin, /admin/, /admin/login, /secret/admin
+#   - Pattern ".php" matches: /test.php, /index.php, /path/to/file.php
+#   - Pattern "wp-" matches: /wp-admin, /wp-login.php, /wp-content
+#
+# EXAMPLES:
+# =========
+# /admin          - Matches any URI containing "/admin"
+# /login          - Matches any URI containing "/login"
+# .php            - Matches any URI containing ".php"
+# wp-             - Matches WordPress-related paths
+# /backup         - Matches backup directories
+# /config         - Matches config files/directories
+# .env            - Matches environment files
+# /api/admin      - Matches specific admin API endpoints
+#
+# BEST PRACTICES:
+# ===============
+# - Be specific to reduce false positives
+# - Test patterns before deploying to production
+# - Monitor logs to see what's being caught
+# - Use more specific patterns for high-traffic sites
+# - Consider your actual application structure
+#
+# NOTE: 
+# Legitimate requests that match these patterns will NOT be blocked.
+# Only requests that match a pattern AND return 403/404 are suspicious.
+# After reaching the threshold (default: 5), the IP is blacklisted.
+
+# ==============================================================================
+# DEFAULT PATTERNS
+# ==============================================================================
+
+# Common admin paths
+/admin
+/administrator
+/admin.php
+/login
+/wp-admin
+/wp-login
+
+# PHP file probing (common on non-PHP servers)
+.php
+
+# Common sensitive files
+/.env
+/.git
+/config
+/backup
+/.aws
+/.ssh
+
+# WordPress-specific (if not running WordPress)
+/wp-
+/xmlrpc.php
+/wp-cron.php
+
+# Database admin tools
+/phpmyadmin
+/pma
+/mysql
+/adminer
+
+# Common vulnerable paths
+/cgi-bin/
+/.well-known/
+/vendor/
+
+# Shell/backdoor attempts
+/shell
+/cmd
+/exec
+c99.php
+r57.php
+backdoor
+
+# Old/vulnerable software paths
+/joomla
+/drupal
+/typo3
+/magento
+
+# API abuse attempts
+/api/v1/admin
+/api/admin
+/rest/admin
+
+# Development/debug paths
+/debug
+/test
+/phpinfo
+/.svn
+/.hg
+
+# File upload attempts
+/upload.php
+/uploader
+/filemanager
+
+# ==============================================================================
+# CUSTOM PATTERNS
+# ==============================================================================
+# Add your own patterns below. Examples:
+#
+# For a Rails app, you might add:
+# /rails/admin
+# /admin/dashboard
+#
+# For a Node.js app:
+# /admin/api
+# /management
+#
+# For specific file types to protect:
+# .conf
+# .sql
+# .bak
+# .old
+#
+# For specific endpoints in your app:
+# /internal
+# /private
+# /restricted
+
+# Your custom patterns here:
