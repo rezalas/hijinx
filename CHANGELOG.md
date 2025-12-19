@@ -1,5 +1,41 @@
 # Hijinx Module Changelog
 
+## Latest Changes
+
+### hijinx_debug Configuration Directive
+**Added**: Configuration flag for optional debug logging
+
+**Purpose**: Enable detailed diagnostic logging for troubleshooting without impacting production performance
+
+**Usage**:
+```nginx
+http {
+    hijinx on;
+    hijinx_debug on;  # Enable verbose debug logging
+}
+```
+
+**Debug Output**:
+- Handler entry points and URI processing
+- IP extraction and blacklist checks
+- Pattern matching details
+- Counter increments and threshold checks
+- Fake content serving decisions
+
+**Implementation**:
+- All debug logs conditional on `hijinx_debug` flag
+- Logs at WARN level to nginx error.log
+- Zero overhead when disabled (default)
+- Macro-based: `hijinx_debug_log(r, hlcf, ...)`
+
+**Benefits**:
+- Troubleshoot module behavior without recompiling
+- Safe for production (disabled by default)
+- Detailed visibility into security decisions
+- Performance-optimized (compile-time check when off)
+
+---
+
 ## Log Rotation Implementation
 
 The Hijinx module uses standard log rotation practices with logrotate.

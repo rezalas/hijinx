@@ -30,9 +30,16 @@ This module processes requests in real-time. It monitors for suspicious patterns
 # Build
 make modules
 
-# Install
-sudo cp objs/ngx_http_hijinx_module.so /etc/nginx/modules/
+# Install (use Makefile for proper installation)
+cd /path/to/hijinx
+make install
+
+# Or manually:
+sudo mkdir -p /usr/share/nginx/modules
+sudo cp objs/ngx_http_hijinx_module.so /usr/share/nginx/modules/
 ```
+
+**Important**: The module must be installed to `/usr/share/nginx/modules/` (not `/etc/nginx/modules/`) to match nginx's compiled prefix path.
 
 ### As a Static Module
 
@@ -49,11 +56,22 @@ sudo make install
 
 ### Load the Module (Dynamic Module Only)
 
-Add to the top of your `nginx.conf`:
+Add to the top of your `nginx.conf` (recommended method):
+
+```nginx
+# Load all enabled modules
+include /etc/nginx/modules-enabled/*.conf;
+```
+
+The `make install` command creates `/etc/nginx/modules-enabled/mod_http_hijinx.conf` which loads the module.
+
+Alternatively, load the module directly:
 
 ```nginx
 load_module modules/ngx_http_hijinx_module.so;
 ```
+
+**Note**: The path `modules/` is relative to nginx's prefix (`/usr/share/nginx/`), resolving to `/usr/share/nginx/modules/ngx_http_hijinx_module.so`.
 
 ### Basic Configuration
 
@@ -129,6 +147,13 @@ When enabled, serves random HTML content from the HTML directory instead of allo
 - **Context**: `http`, `server`, `location`
 
 Directory containing HTML files to randomly serve when `hijinx_serve_random_content` is enabled. The module will load all `.html` files from this directory at startup.
+
+#### `hijinx_debug`
+- **Syntax**: `hijinx_debug on|off;`
+- **Default**: `off`
+- **Context**: `http`, `server`, `location`
+
+Enables detailed debug logging to nginx error log. When enabled, logs pattern matches, IP tracking, blacklist checks, and other diagnostic information at WARN level. Useful for troubleshooting but increases log volume. Should be disabled in production for optimal performance.
 
 ## How It Works
 

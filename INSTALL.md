@@ -32,6 +32,21 @@ Or all at once:
 make all NGINX_DIR=/path/to/nginx-source
 ```
 
+## Module Installation Paths
+
+The `make install` command installs components to these locations:
+
+- **Module binary**: `/usr/share/nginx/modules/ngx_http_hijinx_module.so`
+- **Load config**: `/etc/nginx/modules-available/mod_http_hijinx.conf`
+- **Load symlink**: `/etc/nginx/modules-enabled/mod_http_hijinx.conf` (auto-created)
+- **Configuration files**: `/etc/nginx/hijinx/` (patterns.txt, config templates)
+- **HTML files**: `/etc/nginx/hijinx/html/` (fake content pages)
+- **Blacklist**: `/etc/nginx/hijinx/blacklist.txt`
+- **Logs**: `/var/log/nginx/hijinx/`
+- **Logrotate config**: `/etc/logrotate.d/hijinx`
+
+**Important**: The module path (`/usr/share/nginx/modules/`) matches nginx's default prefix. The `load_module` directive uses the relative path `modules/ngx_http_hijinx_module.so` which resolves to this location.
+
 ## Detailed Installation Steps
 
 ### Step 1: Get Nginx Source Code
@@ -123,12 +138,18 @@ This rebuilds and reinstalls nginx with the module compiled in.
 
 ### Step 4: Install the Dynamic Module
 
-Copy the module to your nginx modules directory:
+Copy the module to nginx's modules directory:
 
 ```bash
-sudo mkdir -p /etc/nginx/modules
-sudo cp objs/ngx_http_hijinx_module.so /etc/nginx/modules/
+# Using the Makefile (recommended):
+make install
+
+# Or manually:
+sudo mkdir -p /usr/share/nginx/modules
+sudo cp objs/ngx_http_hijinx_module.so /usr/share/nginx/modules/
 ```
+
+**Note**: The module must be installed to `/usr/share/nginx/modules/` (nginx's prefix + modules/) so that the `load_module modules/ngx_http_hijinx_module.so;` directive can find it.
 
 ### Step 5: Setup Directories and Files
 
@@ -166,11 +187,29 @@ make setup
 
 #### For Dynamic Module:
 
+**Option A: Use modules-enabled (Recommended)**
+
 Add to the **top** of your `nginx.conf` (before any other directives):
+
+```nginx
+# Load all enabled modules
+include /etc/nginx/modules-enabled/*.conf;
+```
+
+The `make install` step already created `/etc/nginx/modules-enabled/mod_http_hijinx.conf` containing:
+```nginx
+load_module modules/ngx_http_hijinx_module.so;
+```
+
+**Option B: Direct Load (Alternative)**
+
+Or load the module directly:
 
 ```nginx
 load_module modules/ngx_http_hijinx_module.so;
 ```
+
+**Path Resolution**: The relative path `modules/` resolves to `/usr/share/nginx/modules/` (nginx's compiled prefix path).
 
 Then add the hijinx configuration in your `http` block:
 
@@ -186,6 +225,9 @@ http {
     # Set threshold (number of suspicious requests before blocking)
     hijinx_threshold 5;
     
+    # Optional: Enable debug logging (use only for troubleshooting)
+    # hijinx_debug on;
+    
     # ... rest of your configuration
 }
 ```
@@ -200,6 +242,9 @@ http {
     hijinx_blacklist /etc/nginx/hijinx/blacklist.txt;
     hijinx_log_dir /var/log/nginx/hijinx;
     hijinx_threshold 5;
+    
+    # Optional: Enable debug logging (use only for troubleshooting)
+    # hijinx_debug on;
     
     # ... rest of your configuration
 }
