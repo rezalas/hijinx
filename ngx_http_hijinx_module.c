@@ -592,7 +592,7 @@ ngx_http_hijinx_log_event(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *reque
     file.name.len = len;
     file.log = r->connection->log;
 
-    file.fd = ngx_open_file(file.name.data, NGX_FILE_WRONLY, NGX_FILE_CREATE_OR_OPEN,
+    file.fd = ngx_open_file(file.name.data, NGX_FILE_APPEND, NGX_FILE_CREATE_OR_OPEN,
                             NGX_FILE_DEFAULT_ACCESS);
     if (file.fd == NGX_INVALID_FILE) {
         return NGX_ERROR;
@@ -605,7 +605,12 @@ ngx_http_hijinx_log_event(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *reque
     len = ngx_snprintf(buf, sizeof(buf), "%s - %V - Added to blacklist thanks to final straw - %V\n",
                       timebuf, ip, request_uri) - buf;
 
-    ngx_write_file(&file, buf, len, file.offset);
+    /* Use direct write() since file is opened in append mode */
+    if (write(file.fd, buf, len) == -1) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
+                     "hijinx: Failed to write to hijinx.log");
+    }
+    
     ngx_close_file(file.fd);
 
     return NGX_OK;

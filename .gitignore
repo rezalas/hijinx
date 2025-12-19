@@ -496,3 +496,4 @@ dkms.conf
 # debug information files
 *.dwo
 
+watch-crashes.sh
