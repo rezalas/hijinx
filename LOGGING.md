@@ -34,6 +34,27 @@ TIMESTAMP - IP_ADDRESS - EVENT_TYPE - REQUEST_URI
 
 Records module errors and issues:
 
+### nginx error.log - Debug Logging
+
+When `hijinx_debug on;` is enabled in the nginx configuration, detailed diagnostic information is logged to nginx's main error.log at WARN level:
+
+**Debug Events Include:**
+- Handler entry and URI being processed
+- IP address extraction and blacklist checks
+- Pattern matching details
+- IP counter increments and threshold checks
+- Fake content serving decisions
+
+**Example debug output:**
+```
+2025-12-18 10:15:23 [warn] hijinx: Handler entered for URI=/admin
+2025-12-18 10:15:23 [warn] hijinx: Got IP=192.168.1.100, checking blacklist
+2025-12-18 10:15:23 [warn] hijinx: Pattern check for /admin: is_suspicious=1
+2025-12-18 10:15:23 [warn] hijinx: IP 192.168.1.100 count is now 3 (threshold=5)
+```
+
+**Note:** Debug logging should only be enabled for troubleshooting as it significantly increases log volume. Disable in production for optimal performance.
+
 **Common Errors**:
 ```
 2025-12-18 10:30:00 - ERROR - No HTML files loaded for random content serving

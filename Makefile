@@ -11,7 +11,7 @@
 NGINX_VERSION ?= 1.24.0
 NGINX_DIR ?= ../nginx-$(NGINX_VERSION)
 MODULE_DIR := $(shell pwd)
-INSTALL_DIR ?= /etc/nginx/modules
+INSTALL_DIR ?= /usr/share/nginx/modules
 
 # Colors for output
 COLOR_RESET = \033[0m
@@ -40,6 +40,11 @@ help:
 	@echo "  NGINX_DIR=$(NGINX_DIR)"
 	@echo "  MODULE_DIR=$(MODULE_DIR)"
 	@echo "  INSTALL_DIR=$(INSTALL_DIR)"
+	@echo ""
+	@echo "$(COLOR_YELLOW)Note:$(COLOR_RESET)"
+	@echo "  Module installs to: $(INSTALL_DIR)/"
+	@echo "  Config installs to: /etc/nginx/modules-available/"
+	@echo "  Load via: /etc/nginx/modules-enabled/mod_http_hijinx.conf"
 
 setup:
 	@echo "$(COLOR_GREEN)Setting up hijinx directories...$(COLOR_RESET)"
@@ -144,12 +149,16 @@ install:
 		echo "$(COLOR_GREEN)Logrotate configuration installed!$(COLOR_RESET)" || \
 		echo "$(COLOR_YELLOW)Logrotate not found or failed to install config$(COLOR_RESET)"
 	@echo ""
+	@echo "$(COLOR_BLUE)Module installation complete!$(COLOR_RESET)"
+	@echo "  Binary: $(INSTALL_DIR)/ngx_http_hijinx_module.so"
+	@echo "  Config: /etc/nginx/modules-available/mod_http_hijinx.conf"
+	@echo "  Symlink: /etc/nginx/modules-enabled/mod_http_hijinx.conf"
+	@echo ""
 	@echo "$(COLOR_BLUE)Next steps:$(COLOR_RESET)"
-	@echo "1. Module is enabled at /etc/nginx/modules-enabled/mod_http_hijinx.conf"
-	@echo "2. Include in nginx.conf OR add: include /etc/nginx/modules-enabled/*.conf;"
-	@echo "3. Configure hijinx (see /etc/nginx/hijinx/hijinx-nginx.conf)"
-	@echo "4. Test: sudo nginx -t"
-	@echo "5. Reload: sudo nginx -s reload"
+	@echo "1. Add to nginx.conf (top level): include /etc/nginx/modules-enabled/*.conf;"
+	@echo "2. Configure hijinx in http block (see /etc/nginx/hijinx/hijinx-nginx.conf)"
+	@echo "3. Test config: sudo nginx -t"
+	@echo "4. Reload nginx: sudo systemctl reload nginx"
 
 test:
 	@echo "$(COLOR_GREEN)Testing nginx configuration...$(COLOR_RESET)"

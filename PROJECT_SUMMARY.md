@@ -65,6 +65,7 @@ sudo nginx -s reload
 | `hijinx_serve_random_content` | off | Serve fake HTML to suspicious requests |
 | `hijinx_html_dir` | /etc/nginx/hijinx/html | Directory with HTML files |
 | `hijinx_threshold` | 5 | Requests before blocking |
+| `hijinx_debug` | off | Enable detailed debug logging (for troubleshooting) |
 
 ## Testing
 
