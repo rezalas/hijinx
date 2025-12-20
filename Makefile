@@ -132,15 +132,30 @@ install:
 	@echo "$(COLOR_GREEN)Module copied to $(INSTALL_DIR)/$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_BLUE)Installing module configuration...$(COLOR_RESET)"
-	@sudo mkdir -p /etc/nginx/modules-available 2>/dev/null || true
+	@sudo mkdir -p /usr/share/nginx/modules-available 2>/dev/null || true
 	@sudo mkdir -p /etc/nginx/modules-enabled 2>/dev/null || true
-	@sudo cp mod_http_hijinx.conf /etc/nginx/modules-available/
-	@sudo chmod 644 /etc/nginx/modules-available/mod_http_hijinx.conf
-	@echo "$(COLOR_GREEN)Module config installed to /etc/nginx/modules-available/$(COLOR_RESET)"
-	@if [ ! -L /etc/nginx/modules-enabled/mod_http_hijinx.conf ]; then \
-		sudo ln -s /etc/nginx/modules-available/mod_http_hijinx.conf /etc/nginx/modules-enabled/mod_http_hijinx.conf 2>/dev/null && \
+	@sudo cp mod_http_hijinx.conf /usr/share/nginx/modules-available/
+	@sudo chmod 644 /usr/share/nginx/modules-available/mod_http_hijinx.conf
+	@echo "$(COLOR_GREEN)Module config installed to /usr/share/nginx/modules-available/$(COLOR_RESET)"
+	@if [ ! -L /etc/nginx/modules-enabled/50-mod-http-hijinx.conf ]; then \
+		if [ -e /etc/nginx/modules-enabled/50-mod-http-hijinx.conf ]; then \
+			echo "$(COLOR_YELLOW)Regular file exists at /etc/nginx/modules-enabled/50-mod-http-hijinx.conf, removing...$(COLOR_RESET)"; \
+			sudo rm /etc/nginx/modules-enabled/50-mod-http-hijinx.conf; \
+		fi; \
+		sudo ln -s /usr/share/nginx/modules-available/mod_http_hijinx.conf /etc/nginx/modules-enabled/50-mod-http-hijinx.conf 2>/dev/null && \
 			echo "$(COLOR_GREEN)Module enabled via symlink in modules-enabled/$(COLOR_RESET)" || \
 			echo "$(COLOR_YELLOW)Could not create symlink (may need manual setup)$(COLOR_RESET)"; \
+	else \
+		LINK_TARGET=$$(readlink /etc/nginx/modules-enabled/50-mod-http-hijinx.conf); \
+		if [ "$$LINK_TARGET" = "/usr/share/nginx/modules-available/mod_http_hijinx.conf" ]; then \
+			echo "$(COLOR_GREEN)Symlink already exists and is correct$(COLOR_RESET)"; \
+		else \
+			echo "$(COLOR_YELLOW)Symlink exists but points to $$LINK_TARGET$(COLOR_RESET)"; \
+			echo "$(COLOR_YELLOW)Updating symlink to point to /usr/share/nginx/modules-available/mod_http_hijinx.conf$(COLOR_RESET)"; \
+			sudo rm /etc/nginx/modules-enabled/50-mod-http-hijinx.conf; \
+			sudo ln -s /usr/share/nginx/modules-available/mod_http_hijinx.conf /etc/nginx/modules-enabled/50-mod-http-hijinx.conf; \
+			echo "$(COLOR_GREEN)Symlink updated$(COLOR_RESET)"; \
+		fi; \
 	fi
 	@echo ""
 	@echo "$(COLOR_BLUE)Installing logrotate configuration...$(COLOR_RESET)"
@@ -151,8 +166,8 @@ install:
 	@echo ""
 	@echo "$(COLOR_BLUE)Module installation complete!$(COLOR_RESET)"
 	@echo "  Binary: $(INSTALL_DIR)/ngx_http_hijinx_module.so"
-	@echo "  Config: /etc/nginx/modules-available/mod_http_hijinx.conf"
-	@echo "  Symlink: /etc/nginx/modules-enabled/mod_http_hijinx.conf"
+	@echo "  Config: /usr/share/nginx/modules-available/mod_http_hijinx.conf"
+	@echo "  Symlink: /etc/nginx/modules-enabled/50-mod-http-hijinx.conf"
 	@echo ""
 	@echo "$(COLOR_BLUE)Next steps:$(COLOR_RESET)"
 	@echo "1. Add to nginx.conf (top level): include /etc/nginx/modules-enabled/*.conf;"
