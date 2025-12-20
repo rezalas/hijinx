@@ -22,12 +22,12 @@ Records all security-related events:
 
 **Random Content Serving** (when `hijinx_serve_random_content` is enabled)
 ```
-2025-12-18 10:22:45 - 10.0.0.50 - Served random content (file #2) - /wp-login.php | GET /wp-login.php HTTP/1.1 200
+2025-12-18 10:22:45 - 10.0.0.50 - Served random content (wordpress-admin.html) - /wp-login.php | GET /wp-login.php HTTP/1.1 200
 ```
 
 **Format**:
 ```
-TIMESTAMP - IP_ADDRESS - EVENT_TYPE - REQUEST_URI | METHOD URI PROTOCOL STATUS
+TIMESTAMP - IP_ADDRESS - EVENT_TYPE (FILENAME) - REQUEST_URI | METHOD URI PROTOCOL STATUS
 ```
 
 ### hijinx-error.log - Error Log
@@ -82,11 +82,9 @@ When an IP is blacklisted:
 When fake HTML is served:
 - **Timestamp**: Date and time of serving
 - **IP Address**: Who requested
-- **File Index**: Which HTML file was served (0-based index)
+- **Filename**: Which HTML file was served (e.g., admin-login.html)
 - **URI**: What path was requested
 - **Original Request**: The complete request line in access.log format (METHOD URI PROTOCOL STATUS)
-
-Example: `file #2` means the 3rd HTML file (0-indexed) was served
 
 The log entry includes both what was served and the original request details, allowing you to correlate the fake response with the actual request made.
 

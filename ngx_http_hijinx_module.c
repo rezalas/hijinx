@@ -26,6 +26,7 @@ typedef struct {
 } ngx_http_hijinx_pattern_t;
 
 typedef struct {
+    ngx_str_t   filename;
     ngx_str_t   content;
 } ngx_http_hijinx_html_t;
 
@@ -78,8 +79,7 @@ static ngx_int_t ngx_http_hijinx_load_patterns(ngx_conf_t *cf, ngx_http_hijinx_l
 static ngx_int_t ngx_http_hijinx_check_patterns(ngx_http_request_t *r, ngx_http_hijinx_loc_conf_t *hlcf);
 static ngx_int_t ngx_http_hijinx_load_html_files(ngx_conf_t *cf, ngx_http_hijinx_loc_conf_t *conf);
 static ngx_int_t ngx_http_hijinx_serve_random_html(ngx_http_request_t *r, ngx_http_hijinx_loc_conf_t *hlcf);
-static ngx_int_t ngx_http_hijinx_serve_random_html_content_handler(ngx_http_request_t *r);
-static ngx_int_t ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *request_uri, ngx_uint_t file_index, ngx_uint_t status);
+static ngx_int_t ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *request_uri, ngx_str_t *filename, ngx_uint_t status);
 static void ngx_http_hijinx_log_error(ngx_http_request_t *r, const char *message);
 static char *ngx_http_hijinx_patterns(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_http_hijinx_html_dir(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
@@ -622,7 +622,7 @@ ngx_http_hijinx_log_event(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *reque
 
 /* Log random content serving events */
 static ngx_int_t
-ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *request_uri, ngx_uint_t file_index, ngx_uint_t status)
+ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *request_uri, ngx_str_t *filename, ngx_uint_t status)
 {
     ngx_file_t file;
     ngx_http_hijinx_loc_conf_t *hlcf;
@@ -660,11 +660,13 @@ ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str
     ngx_snprintf(timebuf, sizeof(timebuf), "%04d-%02d-%02d %02d:%02d:%02d",
                 tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
                 tm->tm_hour, tm->tm_min, tm->tm_sec);
+    
+    timebuf[19] = '\0';  /* Null terminate the timestamp (YYYY-MM-DD HH:MM:SS is 19 chars) */
 
     /* Log format: timestamp - IP - served info - URI | Original request in access.log format */
     buflen = ngx_snprintf(buf, sizeof(buf), 
-                          "%s - %V - Served random content (file #%ui) - %V | %V %V %V %ui\n",
-                          timebuf, ip, file_index, request_uri,
+                          "%s - %V - Served random content (%V) - %V | %V %V %V %ui\n",
+                          timebuf, ip, filename, request_uri,
                           &r->method_name, &r->unparsed_uri, 
                           &r->http_protocol, status) - buf;
 
@@ -763,9 +765,16 @@ ngx_http_hijinx_handler(ngx_http_request_t *r)
         hijinx_debug_log(r, hlcf, "hijinx: IP %V is blacklisted, serving fake content", &ip);
         /* Serve fake HTML to blacklisted IPs instead of returning 403 */
         if (hlcf->serve_random_content) {
-            /* Set the content handler to serve random HTML */
-            r->content_handler = ngx_http_hijinx_serve_random_html_content_handler;
-            return NGX_DECLINED;
+            ngx_int_t rc;
+            
+            /* Discard request body first */
+            rc = ngx_http_discard_request_body(r);
+            if (rc != NGX_OK && rc != NGX_AGAIN) {
+                return rc;
+            }
+            
+            /* Directly call the serve function to bypass all other phases */
+            return ngx_http_hijinx_serve_random_html(r, hlcf);
         }
         return NGX_HTTP_FORBIDDEN;
     }
@@ -1113,6 +1122,16 @@ ngx_http_hijinx_load_html_files(ngx_conf_t *cf, ngx_http_hijinx_loc_conf_t *conf
             return NGX_ERROR;
         }
 
+        /* Store filename */
+        html->filename.len = len;
+        html->filename.data = ngx_pnalloc(cf->pool, len);
+        if (html->filename.data == NULL) {
+            ngx_close_file(file.fd);
+            ngx_close_dir(&dir);
+            return NGX_ERROR;
+        }
+        ngx_memcpy(html->filename.data, filename, len);
+
         html->content.len = ngx_file_size(&fi);
         html->content.data = ngx_pnalloc(cf->pool, html->content.len);
         if (html->content.data == NULL) {
@@ -1155,16 +1174,6 @@ ngx_http_hijinx_load_html_files(ngx_conf_t *cf, ngx_http_hijinx_loc_conf_t *conf
     return NGX_OK;
 }
 
-/* Content phase handler wrapper for serving random HTML */
-static ngx_int_t
-ngx_http_hijinx_serve_random_html_content_handler(ngx_http_request_t *r)
-{
-    ngx_http_hijinx_loc_conf_t *hlcf;
-    
-    hlcf = ngx_http_get_module_loc_conf(r, ngx_http_hijinx_module);
-    return ngx_http_hijinx_serve_random_html(r, hlcf);
-}
-
 /* Serve random HTML content from loaded files */
 static ngx_int_t
 ngx_http_hijinx_serve_random_html(ngx_http_request_t *r, ngx_http_hijinx_loc_conf_t *hlcf)
@@ -1194,7 +1203,7 @@ ngx_http_hijinx_serve_random_html(ngx_http_request_t *r, ngx_http_hijinx_loc_con
     ip = r->connection->addr_text;
 
     /* Log the random content serving event */
-    ngx_http_hijinx_log_random_content(r, &ip, &r->uri, index, NGX_HTTP_OK);
+    ngx_http_hijinx_log_random_content(r, &ip, &r->uri, &selected->filename, NGX_HTTP_OK);
 
     /* Discard request body */
     rc = ngx_http_discard_request_body(r);
@@ -1232,5 +1241,11 @@ ngx_http_hijinx_serve_random_html(ngx_http_request_t *r, ngx_http_hijinx_loc_con
     out.buf = b;
     out.next = NULL;
 
-    return ngx_http_output_filter(r, &out);
+    rc = ngx_http_output_filter(r, &out);
+    
+    /* Finalize the request to prevent further processing */
+    ngx_http_finalize_request(r, rc);
+    
+    /* Return NGX_DONE to tell the access phase handler that the request is complete */
+    return NGX_DONE;
 }
