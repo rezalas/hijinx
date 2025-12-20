@@ -78,7 +78,8 @@ static ngx_int_t ngx_http_hijinx_load_patterns(ngx_conf_t *cf, ngx_http_hijinx_l
 static ngx_int_t ngx_http_hijinx_check_patterns(ngx_http_request_t *r, ngx_http_hijinx_loc_conf_t *hlcf);
 static ngx_int_t ngx_http_hijinx_load_html_files(ngx_conf_t *cf, ngx_http_hijinx_loc_conf_t *conf);
 static ngx_int_t ngx_http_hijinx_serve_random_html(ngx_http_request_t *r, ngx_http_hijinx_loc_conf_t *hlcf);
-static ngx_int_t ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *request_uri, ngx_uint_t file_index);
+static ngx_int_t ngx_http_hijinx_serve_random_html_content_handler(ngx_http_request_t *r);
+static ngx_int_t ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *request_uri, ngx_uint_t file_index, ngx_uint_t status);
 static void ngx_http_hijinx_log_error(ngx_http_request_t *r, const char *message);
 static char *ngx_http_hijinx_patterns(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static char *ngx_http_hijinx_html_dir(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
@@ -618,14 +619,14 @@ ngx_http_hijinx_log_event(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *reque
 
 /* Log random content serving events */
 static ngx_int_t
-ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *request_uri, ngx_uint_t file_index)
+ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str_t *request_uri, ngx_uint_t file_index, ngx_uint_t status)
 {
     ngx_file_t file;
     ngx_http_hijinx_loc_conf_t *hlcf;
-    u_char buf[2048];
+    u_char buf[4096];
     u_char logpath[512];
     u_char timebuf[64];
-    size_t len;
+    size_t pathlen, buflen;
     struct tm *tm;
     time_t now;
 
@@ -636,11 +637,13 @@ ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str
     
     ngx_memzero(&file, sizeof(ngx_file_t));
     
-    len = ngx_snprintf(logpath, sizeof(logpath), "%V/hijinx.log",
-                      &hlcf->log_dir) - logpath;
+    pathlen = ngx_snprintf(logpath, sizeof(logpath), "%V/hijinx.log",
+                           &hlcf->log_dir) - logpath;
+    
+    logpath[pathlen] = '\0';  /* Ensure null termination */
     
     file.name.data = logpath;
-    file.name.len = len;
+    file.name.len = pathlen;
     file.log = r->connection->log;
 
     file.fd = ngx_open_file(file.name.data, NGX_FILE_APPEND, NGX_FILE_CREATE_OR_OPEN,
@@ -655,11 +658,15 @@ ngx_http_hijinx_log_random_content(ngx_http_request_t *r, ngx_str_t *ip, ngx_str
                 tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
                 tm->tm_hour, tm->tm_min, tm->tm_sec);
 
-    len = ngx_snprintf(buf, sizeof(buf), "%s - %V - Served random content (file #%ui) - %V\n",
-                      timebuf, ip, file_index, request_uri) - buf;
+    /* Log format: timestamp - IP - served info - URI | Original request in access.log format */
+    buflen = ngx_snprintf(buf, sizeof(buf), 
+                          "%s - %V - Served random content (file #%ui) - %V | %V %V %V %ui\n",
+                          timebuf, ip, file_index, request_uri,
+                          &r->method_name, &r->unparsed_uri, 
+                          &r->http_protocol, status) - buf;
 
     /* Write directly since file is opened in append mode */
-    if (write(file.fd, buf, len) == -1) {
+    if (write(file.fd, buf, buflen) == -1) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, ngx_errno,
                      "hijinx: Failed to write to hijinx.log");
     }
@@ -730,6 +737,11 @@ ngx_http_hijinx_handler(ngx_http_request_t *r)
 
     hlcf = ngx_http_get_module_loc_conf(r, ngx_http_hijinx_module);
     
+    /* Skip internal requests to avoid duplicate processing */
+    if (r->internal) {
+        return NGX_DECLINED;
+    }
+    
     hijinx_debug_log(r, hlcf, "hijinx: Handler entered for URI=%V", &r->uri);
 
     if (!hlcf->enabled) {
@@ -748,7 +760,9 @@ ngx_http_hijinx_handler(ngx_http_request_t *r)
         hijinx_debug_log(r, hlcf, "hijinx: IP %V is blacklisted, serving fake content", &ip);
         /* Serve fake HTML to blacklisted IPs instead of returning 403 */
         if (hlcf->serve_random_content) {
-            return ngx_http_hijinx_serve_random_html(r, hlcf);
+            /* Set the content handler to serve random HTML */
+            r->content_handler = ngx_http_hijinx_serve_random_html_content_handler;
+            return NGX_DECLINED;
         }
         return NGX_HTTP_FORBIDDEN;
     }
@@ -1138,6 +1152,16 @@ ngx_http_hijinx_load_html_files(ngx_conf_t *cf, ngx_http_hijinx_loc_conf_t *conf
     return NGX_OK;
 }
 
+/* Content phase handler wrapper for serving random HTML */
+static ngx_int_t
+ngx_http_hijinx_serve_random_html_content_handler(ngx_http_request_t *r)
+{
+    ngx_http_hijinx_loc_conf_t *hlcf;
+    
+    hlcf = ngx_http_get_module_loc_conf(r, ngx_http_hijinx_module);
+    return ngx_http_hijinx_serve_random_html(r, hlcf);
+}
+
 /* Serve random HTML content from loaded files */
 static ngx_int_t
 ngx_http_hijinx_serve_random_html(ngx_http_request_t *r, ngx_http_hijinx_loc_conf_t *hlcf)
@@ -1167,7 +1191,7 @@ ngx_http_hijinx_serve_random_html(ngx_http_request_t *r, ngx_http_hijinx_loc_con
     ip = r->connection->addr_text;
 
     /* Log the random content serving event */
-    ngx_http_hijinx_log_random_content(r, &ip, &r->uri, index);
+    ngx_http_hijinx_log_random_content(r, &ip, &r->uri, index, NGX_HTTP_OK);
 
     /* Discard request body */
     rc = ngx_http_discard_request_body(r);
