@@ -471,6 +471,7 @@ ngx_http_hijinx_check_blacklist(ngx_http_request_t *r, ngx_str_t *ip)
     u_char buf[4096];
     ssize_t n;
     u_char *p, *last;
+    off_t offset = 0;
 
     hlcf = ngx_http_get_module_loc_conf(r, ngx_http_hijinx_module);
 
@@ -484,7 +485,7 @@ ngx_http_hijinx_check_blacklist(ngx_http_request_t *r, ngx_str_t *ip)
     }
 
     for (;;) {
-        n = ngx_read_file(&file, buf, sizeof(buf), 0);
+        n = ngx_read_file(&file, buf, sizeof(buf), offset);
         if (n == NGX_ERROR) {
             ngx_close_file(file.fd);
             return NGX_DECLINED;
@@ -493,6 +494,8 @@ ngx_http_hijinx_check_blacklist(ngx_http_request_t *r, ngx_str_t *ip)
         if (n == 0) {
             break;
         }
+
+        offset += n;
 
         p = buf;
         last = buf + n;
